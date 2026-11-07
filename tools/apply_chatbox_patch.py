@@ -32,8 +32,7 @@ if marker not in java:
                     + "var s=document.getElementById('tcm-chatbox-style');"
                     + "if(!s){s=document.createElement('style');s.id='tcm-chatbox-style';document.head.appendChild(s);}"
                     + "s.textContent=" + JSONObject.quote(css) + ";"
-                    + "var run=function(){try{(new Function(" + JSONObject.quote(js) + "))();}catch(e){console.error('Chatbox UI:',e);}};"
-                    + "run();"
+                    + js
                     + "})();";
             view.evaluateJavascript(script, null);
         } catch (Exception e) {

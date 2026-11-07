@@ -99,7 +99,7 @@ public class InstanceActivity extends Activity {
                     return;
                 }
                 InstanceManager.ensureInstanceDirs(this, inst);
-                setTitle(inst.name);
+                handler.post(() -> setTitle(inst.name));
                 startService(new Intent(this, ServerService.class)
                         .setAction(ServerService.ACTION_START)
                         .putExtra(ServerService.EXTRA_INSTANCE_ID, instanceId));

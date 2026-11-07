@@ -36,7 +36,7 @@ jobs:
       - name: Apply Chatbox patch
         run: python3 tools/apply_chatbox_patch.py
       - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+        run: bash ./gradlew --no-daemon assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

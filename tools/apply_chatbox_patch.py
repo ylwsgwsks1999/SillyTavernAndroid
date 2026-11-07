@@ -59,16 +59,18 @@ if marker not in java:
     java_path.write_text(java, encoding="utf-8")
 
 if "applicationIdSuffix '.chatbox'" not in gradle:
-    release_block = re.search(r"(?ms)(^\s*release\s*\{.*?^\s*\})", gradle)
-    if not release_block:
-        raise SystemExit("Cannot locate release buildType; Gradle file was not changed.")
-    debug_block = """
+    # Insert the debug build type specifically inside android.buildTypes.
+    # Do not match signingConfigs.release, which is a different block.
+    build_types_anchor = "    buildTypes {\n        release {"
+    if build_types_anchor not in gradle:
+        raise SystemExit("Cannot locate android.buildTypes.release; Gradle file was not changed.")
+    debug_block = """    buildTypes {
         debug {
             applicationIdSuffix '.chatbox'
             versionNameSuffix '-chatbox'
         }
-"""
-    gradle = gradle[:release_block.end()] + "\n" + debug_block + gradle[release_block.end():]
+        release {"""
+    gradle = gradle.replace(build_types_anchor, debug_block, 1)
     gradle_path.write_text(gradle, encoding="utf-8")
 
 print("Chatbox mobile patch applied.")

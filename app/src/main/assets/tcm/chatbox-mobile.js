@@ -1,106 +1,110 @@
 (function () {
 'use strict';
-if (window.__TCM_CHATBOX_V3__) return;
-window.__TCM_CHATBOX_V3__ = true;
+if (window.__TCM_CHATBOX_V4__) return;
+window.__TCM_CHATBOX_V4__ = true;
 
-const $ = (s, root=document) => root.querySelector(s);
-const nativeTargets = {
-  ai: ['#leftNavDrawerIcon', '#ai-config-button .drawer-toggle'],
-  characters: ['#rightNavDrawerIcon', '#rightNavHolder .drawer-toggle'],
-  world: ['#WIDrawerIcon', '#WI-SP-button .drawer-toggle'],
-  extensions: ['#extensions-settings-button .drawer-toggle'],
-  user: ['#user-settings-button .drawer-toggle'],
-  api: ['#API-status-top', '#sys-settings-button .drawer-toggle'],
-  formatting: ['#advanced-formatting-button .drawer-toggle'],
-};
-function activateNative(name) {
-  const candidates = nativeTargets[name] || [];
-  let target = null;
-  for (const selector of candidates) {
-    target = $(selector);
-    if (target) break;
+function boot(tries) {
+  const topBar = document.getElementById('top-bar');
+  if (!document.body || !topBar) {
+    if (tries < 30) setTimeout(() => boot(tries + 1), 500);
+    console.warn('[TCM] Waiting for SillyTavern DOM', tries);
+    return;
   }
-  if (!target) {
-    setStatus('没有找到酒馆原生面板：' + name + '。请检查酒馆前端版本。');
-    console.warn('[TCM] Native panel target missing:', name, candidates);
-    return false;
+
+  document.getElementById('tcm-left')?.remove();
+  document.getElementById('tcm-right')?.remove();
+  document.getElementById('tcm-scrim')?.remove();
+  document.getElementById('tcm-chatbox-top')?.remove();
+
+  const top = document.createElement('div');
+  top.id = 'tcm-chatbox-top';
+  top.innerHTML = '<button type="button" id="tcm-open-left">☰</button><div id="tcm-chatbox-title">SillyTavern</div><button type="button" id="tcm-open-right">⚙</button>';
+  topBar.replaceChildren(top);
+
+  const scrim = document.createElement('div');
+  scrim.id = 'tcm-scrim';
+  document.body.appendChild(scrim);
+
+  const leftItems = [
+    ['AI 参数 / Presets', '#leftNavDrawerIcon'],
+    ['角色 / 聊天管理', '#rightNavDrawerIcon'],
+    ['世界书 / Lorebook', '#WIDrawerIcon'],
+    ['扩展管理', '[data-target="extensions-settings-button"]'],
+    ['用户设置', '#user-settings-button']
+  ];
+  const rightItems = [
+    ['API / 模型连接', '[data-target="sys-settings-button"]'],
+    ['AI 格式设置', '#advanced-formatting-button'],
+    ['预设管理', '#leftNavDrawerIcon'],
+    ['正则 / Regex', '[data-target="extensions-settings-button"]'],
+    ['扩展管理', '[data-target="extensions-settings-button"]'],
+    ['主题与用户设置', '#user-settings-button']
+  ];
+
+  function makeDrawer(id, heading, items, side) {
+    const drawer = document.createElement('aside');
+    drawer.id = id;
+    drawer.className = 'tcm-drawer ' + side;
+    drawer.innerHTML = '<h3>' + heading + '</h3>' +
+      items.map((item, i) => '<button type="button" data-action="' + i + '">' + item[0] + '</button>').join('') +
+      '<p class="tcm-status">Chatbox v0.4 已加载。点击功能将调用酒馆原生入口。</p><button type="button" data-close="1">关闭</button>';
+    drawer.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (!button) return;
+      if (button.dataset.close) { closeAll(); return; }
+      const item = items[Number(button.dataset.action)];
+      if (!item) return;
+      const target = document.querySelector(item[1]);
+      if (!target) {
+        drawer.querySelector('.tcm-status').textContent = '找不到原生入口：' + item[1];
+        console.warn('[TCM] Native target missing', item[1]);
+        return;
+      }
+      target.click();
+      drawer.querySelector('.tcm-status').textContent = '已触发原生入口：' + item[0];
+    });
+    document.body.appendChild(drawer);
+    return drawer;
   }
-  target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-  setStatus('已请求打开原生面板：' + name);
-  return true;
-}
-function setStatus(message) {
-  const node = $('#tcm-status');
-  if (node) node.textContent = message;
-}
-const old = $('#tcm-chatbox-top'); if (old) old.remove();
-const top = document.createElement('div');
-top.id = 'tcm-chatbox-top';
-top.innerHTML = '<button type="button" id="tcm-open-left" aria-label="打开导航">☰</button><div id="tcm-chatbox-title">SillyTavern</div><button type="button" id="tcm-open-right" aria-label="打开工具">⚙</button>';
-const topBar = $('#top-bar');
-if (topBar) topBar.replaceChildren(top); else document.body.prepend(top);
 
-const priorScrim = $('#tcm-scrim'); if (priorScrim) priorScrim.remove();
-const scrim = document.createElement('div');
-scrim.id = 'tcm-scrim';
-document.body.appendChild(scrim);
+  const left = makeDrawer('tcm-left', '导航与内容', leftItems, 'left');
+  const right = makeDrawer('tcm-right', '设置与高级工具', rightItems, 'right');
 
-const leftItems = [
-  { label: 'AI 参数 / Presets', run: () => activateNative('ai') },
-  { label: '角色 / 聊天管理', run: () => activateNative('characters') },
-  { label: '世界书 / Lorebook', run: () => activateNative('world') },
-  { label: '扩展管理', run: () => activateNative('extensions') },
-  { label: '用户设置', run: () => activateNative('user') }
-];
-const rightItems = [
-  { label: 'API / 模型连接', run: () => activateNative('api') },
-  { label: 'AI 格式设置', run: () => activateNative('formatting') },
-  { label: '预设管理', run: () => { if (activateNative('ai')) setTimeout(() => {
-      const el = $('#respective-presets-block') || $('[id*="preset"]');
-      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
-      else setStatus('AI 参数面板已打开；当前版本未找到预设区域定位点。');
-    }, 450); } },
-  { label: '正则 / Regex', run: () => { if (activateNative('extensions')) setTimeout(() => {
-      const el = $('#regex_container') || $('[id*="regex"]');
-      if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
-      else setStatus('扩展面板已打开；未找到正则扩展区域，请确认 Regex 扩展已安装。');
-    }, 450); } },
-  { label: '扩展管理', run: () => activateNative('extensions') },
-  { label: '主题与用户设置', run: () => activateNative('user') }
-];
+  function openDrawer(drawer) {
+    [left, right].forEach(d => {
+      d.classList.remove('open');
+      d.style.transform = d.classList.contains('left') ? 'translate3d(-105%,0,0)' : 'translate3d(105%,0,0)';
+      d.style.visibility = 'hidden';
+    });
+    drawer.style.visibility = 'visible';
+    drawer.style.transform = 'translate3d(0,0,0)';
+    drawer.classList.add('open');
+    scrim.style.display = 'block';
+    scrim.style.visibility = 'visible';
+  }
+  function closeAll() {
+    left.classList.remove('open');
+    right.classList.remove('open');
+    left.style.transform = 'translate3d(-105%,0,0)';
+    right.style.transform = 'translate3d(105%,0,0)';
+    left.style.visibility = 'hidden';
+    right.style.visibility = 'hidden';
+    scrim.style.display = 'none';
+  }
 
-function makeDrawer(id, title, items) {
-  const d = document.createElement('aside');
-  d.className = 'tcm-drawer';
-  d.id = id;
-  d.innerHTML = '<h3>' + title + '</h3>' +
-    items.map((item, i) => '<button type="button" data-action="' + i + '">' + item.label + '</button>').join('') +
-    '<p id="tcm-status">选择功能后将调用酒馆原生面板。</p><button type="button" data-close="1">关闭</button>';
-  d.addEventListener('click', event => {
-    const button = event.target.closest('button');
-    if (!button) return;
-    if (button.dataset.close) { close(); return; }
-    const item = items[Number(button.dataset.action)];
-    if (item && item.run) item.run();
-  });
-  document.body.appendChild(d);
-  return d;
+  document.getElementById('tcm-open-left').addEventListener('click', event => {
+    event.preventDefault(); event.stopPropagation(); openDrawer(left);
+  }, true);
+  document.getElementById('tcm-open-right').addEventListener('click', event => {
+    event.preventDefault(); event.stopPropagation(); openDrawer(right);
+  }, true);
+  scrim.addEventListener('click', closeAll);
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') closeAll(); });
+
+  const title = document.getElementById('character_name_pole') || document.getElementById('chat_name') || document.querySelector('.character_name');
+  if (title && title.textContent.trim()) document.getElementById('tcm-chatbox-title').textContent = title.textContent.trim();
+
+  console.info('[TCM] Chatbox mobile UI v0.4 ready');
 }
-const left = makeDrawer('tcm-left', '导航与内容', leftItems);
-const right = makeDrawer('tcm-right', '设置与高级工具', rightItems);
-function open(drawer) {
-  left.classList.remove('open'); right.classList.remove('open');
-  drawer.classList.add('open'); scrim.classList.add('open');
-}
-function close() {
-  left.classList.remove('open'); right.classList.remove('open');
-  scrim.classList.remove('open');
-}
-$('#tcm-open-left').addEventListener('click', () => open(left));
-$('#tcm-open-right').addEventListener('click', () => open(right));
-scrim.addEventListener('click', close);
-const title = $('#character_name_pole') || $('#chat_name') || $('.character_name');
-if (title && title.textContent.trim()) $('#tcm-chatbox-title').textContent = title.textContent.trim();
-document.addEventListener('keydown', event => { if (event.key === 'Escape') close(); });
-console.info('[TCM] Chatbox mobile UI v0.3 ready');
+boot(0);
 })();
